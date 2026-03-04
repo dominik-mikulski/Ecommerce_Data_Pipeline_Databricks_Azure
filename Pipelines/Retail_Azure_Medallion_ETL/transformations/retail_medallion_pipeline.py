@@ -4,6 +4,10 @@ from transformations.bronze_to_silver_transformation import (
     unpack_orders,
     unpack_order_items
 )
+from transformations.dq_rules import (
+    fact_order_rules,
+    fact_order_items_rules
+)
 
 # --------------------------------------------------
 # 1. ENVIRONMENT CONFIGURATION (Dynamic Namespacing)
@@ -180,6 +184,7 @@ def dim_product():
 dp.create_streaming_table(f"{GOLDEN}.fact_orders")
 
 @dp.view
+@dp.expect_all(fact_order_rules)
 def fact_orders_prepared():
 
     orders = dp.read_stream(f"{SILVER}.orders")
@@ -227,6 +232,7 @@ dp.apply_changes(
 dp.create_streaming_table(name=f"{GOLDEN}.fact_order_items")
 
 @dp.view
+@dp.expect_all(fact_order_items_rules)
 def fact_order_items_prepared():
 
     order_items=dp.read_stream(f"{SILVER}.order_items")
