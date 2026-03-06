@@ -8,6 +8,9 @@ from transformations.dq_rules import (
     fact_order_rules,
     fact_order_items_rules
 )
+from transformations.expected_schema_v1 import (
+expected_schema
+)
 
 # --------------------------------------------------
 # 1. ENVIRONMENT CONFIGURATION (Dynamic Namespacing)
@@ -16,16 +19,17 @@ from transformations.dq_rules import (
 # Default values are provided so your existing setup doesn't break.
 BRONZE = spark.conf.get("pipeline.names.bronze", "bronze")
 SILVER = spark.conf.get("pipeline.names.silver", "silver")
-GOLDEN = spark.conf.get("pipeline.names.golden", "golden")
+GOLD = spark.conf.get("pipeline.names.gold", "gold")
 
 # Use a config variable for the storage path to avoid hardcoding secrets
 RAW_PATH = spark.conf.get("pipeline.raw_path")
+SCHEMA_PATH = spark.conf.get("pipeline.schema_path")
+
 
 
 # --------------------------------------------------
 # 1. BRONZE INGESTION (Autoloader)
 # --------------------------------------------------
-schema=spark.read.option("multiLine", "true").json(RAW_PATH).schema
 
 @dp.table(
     name=f"{BRONZE}.orders_bronze",
@@ -36,7 +40,9 @@ def orders_bronze():
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "json")
         .option("multiLine","true")
-        .schema(schema)
+        .schema(expected_schema)
+        .option("cloudFiles.schemaLocation", SCHEMA_PATH)
+        .option("cloudFiles.rescuedDataColumn", "_rescued_data")
         .load(RAW_PATH)
         .withColumn("file_path",F.col("_metadata.file_path"))
         .withColumn("file_name",F.col("_metadata.file_name"))
@@ -62,7 +68,7 @@ dp.apply_changes(
     target=f"{SILVER}.orders",
     source="silver_orders_prepared",
     keys=["order_id"],
-    sequence_by=F.col("ingested_at")
+    sequence_by=F.col("order_date")
 )
 
 # --------------------------------------------------
@@ -79,7 +85,7 @@ def order_items():
     return dp.read_stream("silver_order_items_prepared")
 
 # -----------------------
-# SILVER TO GOLDEN
+# SILVER TO gold
 # -----------------------
 
 # -----------------------
@@ -92,7 +98,7 @@ def order_items():
 
 # create target dim_customer table
 dp.create_streaming_table(
-    name=f"{GOLDEN}.dim_customer_scd",
+    name=f"{GOLD}.dim_customer_scd",
 )
 
 # create view and extract customer attributes
@@ -104,24 +110,25 @@ def customer_changes():
             "customer_id",
             "loyalty_tier",
             "segment",
+            "order_date",
             "ingested_at"
         )
     )
 
 # merge source into target on customer_id key, using ingested_at to determine the latest
 dp.apply_changes(
-    target=f"{GOLDEN}.dim_customer_scd",
+    target=f"{GOLD}.dim_customer_scd",
     source="customer_changes",
     keys=["customer_id"],
-    sequence_by=F.col("ingested_at"),
+    sequence_by=F.col("order_date"),
     stored_as_scd_type=2
 )
 
 # finally add a key to the table for joins with orders and order_items
-@dp.table(name=f"{GOLDEN}.dim_customer")
+@dp.table(name=f"{GOLD}.dim_customer")
 def dim_customer():
     return (
-        dp.read("golden.dim_customer_scd")
+        dp.read("GOLD.dim_customer_scd")
         .withColumn(
             "customer_sk",
                 F.xxhash64(
@@ -136,7 +143,7 @@ def dim_customer():
 # -----------------------
 # create target dim_product table
 dp.create_streaming_table(
-    name=f"{GOLDEN}.dim_product_scd"
+    name=f"{GOLD}.dim_product_scd"
 )
 
 # create view and extract product attributes
@@ -147,24 +154,25 @@ def product_changes():
         .select(
             "product_id",
             "category",
+            "order_date",
             "ingested_at"
         )
     )
 
 # merge source into target on customer_id key, using ingested_at to determine the latest
 dp.apply_changes(
-    target=f"{GOLDEN}.dim_product_scd",
+    target=f"{GOLD}.dim_product_scd",
     source="product_changes",
     keys=["product_id"],
-    sequence_by=F.col("ingested_at"),
+    sequence_by=F.col("order_date"),
     stored_as_scd_type=2
 )
 
 # finally add a key to the table for joins with orders and order_items
-@dp.table(name=f"{GOLDEN}.dim_product")
+@dp.table(name=f"{GOLD}.dim_product")
 def dim_product():
     return (
-        dp.read(f"{GOLDEN}.dim_product_scd")
+        dp.read(f"{GOLD}.dim_product_scd")
         .withColumn(
             "product_sk",
                 F.xxhash64(
@@ -181,14 +189,14 @@ def dim_product():
 # -----------------------
 # FACT_ORDERS
 # -----------------------
-dp.create_streaming_table(f"{GOLDEN}.fact_orders")
+dp.create_streaming_table(f"{GOLD}.fact_orders")
 
 @dp.view
 @dp.expect_all(fact_order_rules)
 def fact_orders_prepared():
 
     orders = dp.read_stream(f"{SILVER}.orders")
-    dim = dp.read(f"{GOLDEN}.dim_customer")
+    dim = dp.read(f"{GOLD}.dim_customer")
 
     return (
         orders.alias("o")
@@ -197,7 +205,7 @@ def fact_orders_prepared():
             (
                 (F.col("o.customer_id") == F.col("d.customer_id")) &
                 (
-                    F.col("o.ingested_at")
+                    F.col("o.order_date")
                     .between(
                         F.col("d.__START_AT"),
                         F.coalesce(F.col("d.__END_AT"), F.lit("9999-12-31"))
@@ -218,10 +226,10 @@ def fact_orders_prepared():
     )
 
 dp.apply_changes(
-    target=f"{GOLDEN}.fact_orders",
+    target=f"{GOLD}.fact_orders",
     source="fact_orders_prepared",
     keys=["order_id"],
-    sequence_by=F.col("ingested_at"),
+    sequence_by=F.col("order_date"),
     stored_as_scd_type=1
 )
 
@@ -229,7 +237,7 @@ dp.apply_changes(
 # FACT_ORDER_ITEMS
 # -----------------------
 
-dp.create_streaming_table(name=f"{GOLDEN}.fact_order_items")
+dp.create_streaming_table(name=f"{GOLD}.fact_order_items")
 
 @dp.view
 @dp.expect_all(fact_order_items_rules)
@@ -237,8 +245,8 @@ def fact_order_items_prepared():
 
     order_items=dp.read_stream(f"{SILVER}.order_items")
     orders=dp.read_stream(f"{SILVER}.orders")
-    dim_c=dp.read(f"{GOLDEN}.dim_customer")
-    dim_p = dp.read(f"{GOLDEN}.dim_product")
+    dim_c=dp.read(f"{GOLD}.dim_customer")
+    dim_p = dp.read(f"{GOLD}.dim_product")
 
     return (
     order_items.alias("oi")
@@ -248,13 +256,13 @@ def fact_order_items_prepared():
     .join(
         dim_c.alias("c"), 
         (F.col("o.customer_id") == F.col("c.customer_id")) & 
-            (F.col("oi.ingested_at")
+            (F.col("oi.order_date")
             .between(F.col("c.__START_AT"), F.coalesce(F.col("c.__END_AT"), F.lit("9999-12-31"))))
         )
     .join(
         dim_p.alias("p"), 
         (F.col("oi.product_id") == F.col("p.product_id")) & 
-            (F.col("oi.ingested_at")
+            (F.col("oi.order_date")
             .between(F.col("p.__START_AT"), F.coalesce(F.col("p.__END_AT"), F.lit("9999-12-31")))
             )
         )
@@ -262,9 +270,9 @@ def fact_order_items_prepared():
 )
 
 dp.apply_changes(
-    target=f"{GOLDEN}.fact_order_items",
+    target=f"{GOLD}.fact_order_items",
     source="fact_order_items_prepared",
     keys=["order_id", "product_id"],
-    sequence_by=F.col("ingested_at"),
+    sequence_by=F.col("order_date"),
     stored_as_scd_type=1
 )

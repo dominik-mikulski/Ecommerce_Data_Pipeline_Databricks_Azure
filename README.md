@@ -1,175 +1,219 @@
-# Azure Databricks Incremental Data Pipeline
+  # Azure Databricks Incremental Data Pipeline
 
-## Overview
+  ## Overview
 
-Production-inspired **incremental data pipeline** built on **Azure
-Databricks** using **Azure Data Lake Storage**, **Spark Declarative
-Pipelines**, and **Unity Catalog**.
+  This project demonstrates a **modern cloud-based data pipeline** for
+  processing e-commerce order data using a **Medallion architecture**.
 
-The project simulates an e-commerce data engineering workload and
-demonstrates how to build a **medallion data pipeline** with:
+  The pipeline ingests raw events into a Bronze layer, cleans and
+  validates them in the Silver layer, and produces analytical datasets
+  in the Gold layer for downstream reporting and analytics.
 
--   Bronze → Silver → Gold data layers
--   Incremental ingestion and processing
--   Environment separation for development and production
--   Data quality checks implemented directly in the pipeline
+  **Databricks Declarative Pipelines and Delta Lake** enable incremental
+  processing, deterministic updates, and idempotent pipeline execution.
+  **Auto Loader** provides scalable ingestion of source data.
 
-The goal of the project is to show how modern data pipelines ingest raw
-data, transform it into analytical models, and monitor data quality
-using Databricks native capabilities.
+  **Data quality expectations** monitor key constraints and ensure that
+  datasets meet the quality standards required by downstream
+  stakeholders, while observability components expose pipeline
+  metrics and validation results.
 
-------------------------------------------------------------------------
+  All pipeline code is **version-controlled in Git** using a branching
+  workflow, supporting traceability, collaboration, and controlled
+  releases.
 
-## Project Structure
+  Although the project operates on synthetic data, the architecture
+  reflects patterns commonly used in production data platforms.
 
-    Data                                                        # Data generation and ready json files
-    
-    Notebooks/
-      Pipeline_Validation_and_Data_Quality_Observability        # Table inspection and data quality metrics
-    
-    Pipelines/ Retail_Azure_Medallion_ETL/
-    Transformations/
-    
-      retail_pipeline.py                                        # Declarative Spark pipeline definition
+  ------------------------------------------------------------------------
 
-      dq_rules.py                                               # Data quality expectations used in the pipeline
+  ## Project Structure
 
-      bronze_to_silver_transformations                          # Pipeline helper functions
+      Data                                                        # Data generation and ready json files
+      
+      Notebooks/
+        Pipeline_Validation_and_Data_Quality_Observability        # Table inspection and data quality metrics
+      
+      Pipelines/ Retail_Azure_Medallion_ETL/
+      Transformations/
+      
+        retail_pipeline.py                                        # Declarative Spark pipeline definition
 
-    scripts/
-      setup_infrastructure.py                                   # Creates catalogs and schemas
+        dq_rules.py                                               # Data quality expectations used in the pipeline
 
-------------------------------------------------------------------------
+        bronze_to_silver_transformations                          # Pipeline helper functions
 
-## Architecture
+      scripts/
+        setup_infrastructure.py                                   # Creates catalogs and schemas
 
-The pipeline creates streaming tables organized in a **medallion
-architecture** and governed by **Unity Catalog**.
+  ------------------------------------------------------------------------
 
-### Bronze Layer
+  ## Architecture
 
-Raw JSON files are ingested from **Azure Data Lake Storage** using
-**Auto Loader**.
+  The pipeline is implemented using **Databricks Declarative Pipelines and
+  follows a Medallion architecture**. Data flows through three layers that
+  progressively improve structure and usability while preserving the
+  original raw data.
 
-The Bronze table stores:
+  Streaming tables are used throughout the pipeline, enabling incremental
+  processing and consistent state management across pipeline runs.
 
--   raw payload
--   file metadata (`file_path`, `ingested_at`)
+  ### Bronze Layer
 
-This layer preserves the original data for traceability.
+  The Bronze layer ingests raw JSON order data from **Azure Data Lake
+  Storage** using **Auto Loader**. Data is written into an append-only
+  orders_bronze table together with file-level ingestion metadata.
 
-### Silver Layer
+  No business transformations are applied at this stage. The Bronze layer
+  **preserves the original structure** of incoming data and acts as the
+  system's immutable ingestion log.
 
-The Silver layer transforms raw data into structured tables.
+  Key characteristics:
 
-The pipeline:
+  - Raw data is appended together with file metadata (file path, file
+  name, file size, modification timestamp, ingestion timestamp).
+  - **Auto Loader incrementally processes** only new files, avoiding
+  reprocessing of already ingested data.
+  - **Schema evolution is isolated** in this layer. Unknown fields are
+  captured in the`_rescued_data` column without interrupting pipeline
+  execution.
 
--   unpacks JSON payloads
--   deduplicates records
--   upserts data into structured tables
+  Because Bronze stores the raw ingestion history, **the pipeline can be
+  safely replayed or reprocessed if required**.
 
-Resulting tables:
+  ### Silver Layer
 
--   `orders`
--   `order_items`
+  The Silver layer transforms raw Bronze data into structured,
+  analytics-ready datasets.
 
-### Gold Layer
+  At this stage the pipeline parses JSON payloads, normalizes the schema,
+  and organizes the data into relational tables representing orders and
+  their associated line items.
 
-The Gold layer prepares data for analytics using a **star schema**.
+  **Change data is applied using databricks declartive pipeline** to ensure
+  that repeated processing or replay does not introduce duplicate
+  records.
 
-The pipeline builds:
+  Resulting tables:
 
-**Dimensions**
+  - orders
+  - order_items
 
--   `dim_customer` (SCD Type 2 history)\
--   `dim_product` (SCD Type 2 history)
+  ### Gold Layer
 
-**Facts**
+  The Gold layer models the data into an **analytical star schema** optimized
+  for reporting and downstream analytics.
 
--   `fact_orders`\
--   `fact_order_items`
+  **Dimension tables maintain historical changes** using Slowly Changing
+  Dimensions (Type 2), while fact tables represent transactional order
+  data.
 
-Fact tables are connected to dimensions using **deterministic surrogate
-keys**.
+  Dimensions:
 
-------------------------------------------------------------------------
+  - dim_customer (SCD Type 2)
+  - dim_product (SCD Type 2)
 
-## Environment Separation
+  Facts:
 
-Unity Catalog is used to separate development and production
-environments.
+  - fact_orders (SCD Type 1)
+  - fact_order_items (SCD Type 1)
 
-**Catalogs**
+  Fact tables reference dimension tables using deterministic surrogate
+  keys to maintain stable analytical relationships.
 
--   `PROD_CATALOG` -- production data used for analytics\
--   `DEV_CATALOG` -- development and testing environment
+  ------------------------------------------------------------------------
 
-This setup allows safe pipeline development without affecting production
-data.
+  ## Environment Separation
 
-------------------------------------------------------------------------
+  The pipeline uses Unity Catalog to **separate development, testing and production
+  environments**.
 
-## Source Control
+  Three catalogs are defined:
 
-The project is stored in a **Git repository** and connected to
-Databricks through **Git integration**.
+  - DEV_CATALOG – used for development and experimentation
+  - TEST_CATALOG - to be used for testing and validation
+  - PROD_CATALOG – used for production datasets consumed by analytics
 
-This enables:
+  This separation allows safe iteration on pipeline logic without
+  affecting production data or downstream analytical workloads.
 
--   version control for pipeline code and notebooks\
--   branch-based development and testing\
--   reproducible deployment of pipeline logic
+  ------------------------------------------------------------------------
 
-------------------------------------------------------------------------
+  ## Source Control
 
-## Key Concepts Demonstrated
+  The project is **maintained in a Git repository** and integrated with the
+  Databricks workspace through Git integration.
 
--   **Cloud-native ingestion** using Auto Loader\
--   **Incremental data processing** with declarative Spark pipelines\
--   **Medallion architecture** (Bronze → Silver → Gold)\
--   **Star schema modeling** with fact and dimension tables\
--   **Slowly Changing Dimensions (SCD Type 2)** for history tracking\
--   **Environment isolation** using Unity Catalog\
--   **Data quality monitoring** using pipeline expectations\
--   **Pipeline observability** through event log inspection and data
-    quality metrics\
--   **Secure storage access** using Azure Managed Identity
+  All pipeline code, transformations, and configuration are version
+  controlled, enabling:
 
-------------------------------------------------------------------------
+  - branch-based development and experimentation
+  - traceability of changes to pipeline logic
+  - controlled promotion of updates into production
 
-## How to Replicate
+  This workflow supports **reproducible and auditable pipeline releases**.
 
-### 1. Azure Infrastructure Setup
-1.  **Workspace:** Create an Azure Databricks Workspace (Premium Tier) with Unity Catalog enabled.
-2.  **Storage:** Create an **ADLS Gen2 Account** with **Hierarchical Namespace** enabled and a container named `container-databricks-azure`.
-3.  **Permissions:** Locate the **Access Connector for Azure Databricks** (Managed Identity) created with your workspace. Assign these roles at the **Storage Account** scope:
-    - `Storage Blob Data Contributor`
-    - `Storage Account Contributor`
-    - `Storage Queue Data Contributor`
-    - `EventGrid EventSubscription Contributor`
+  ------------------------------------------------------------------------
 
-### 2. Unity Catalog Configuration (In Databricks)
-1.  **Storage Credential:** Create a new credential using the **Access Connector ID** from Step 1.
-2.  **External Location:** Create a location named `azure_blob` pointing to:
-    `abfss://container-databricks-azure@<account_name>.dfs.core.windows.net/`
-3.  **Permissions:** Grant yourself `READ FILES` and `WRITE FILES`.
+  ## Key Concepts Demonstrated
+
+  - **Cloud-native data ingestion using Auto Loader** for scalable file
+  processing from Azure Data Lake Storage
+  - **Incremental data processing** using Databricks Declarative Pipelines
+  and streaming tables
+  - **Medallion architecture (Bronze → Silver → Gold)** for progressive
+  data refinement and separation of concerns
+  - **Schema evolution handling** using rescued data columns to prevent
+  pipeline failures when new fields appear in source data
+  - **Change data processing** with deterministic merge semantics to
+  ensure idempotent updates
+  - **Star schema modeling** with fact and dimension tables for
+  analytical workloads
+  - **Slowly Changing Dimensions** (Type 2) to preserve historical
+  dimension changes
+  - **Data quality monitoring** using expectations
+  - **Pipeline observability** through event log inspection and data
+  quality metrics
+  - **Environment isolation** using Unity Catalog
+  - **Version-controlled pipeline development** using Git and
+  branch-based workflows
+  - **Secure data access** using Azure Managed Identity
+
+  ------------------------------------------------------------------------
+
+  ## How to Replicate
+
+  ### 1. Azure Infrastructure Setup
+  1.  **Workspace:** Create an Azure Databricks Workspace (Premium Tier) with Unity Catalog enabled.
+  2.  **Storage:** Create an **ADLS Gen2 Account** with **Hierarchical Namespace** enabled and a container named `container-databricks-azure`.
+  3.  **Permissions:** Locate the **Access Connector for Azure Databricks** (Managed Identity) created with your workspace. Assign these roles at the **Storage Account** scope:
+      - `Storage Blob Data Contributor`
+      - `Storage Account Contributor`
+      - `Storage Queue Data Contributor`
+      - `EventGrid EventSubscription Contributor`
+
+  ### 2. Unity Catalog Configuration (In Databricks)
+  1.  **Storage Credential:** Create a new credential using the **Access Connector ID** from Step 1.
+  2.  **External Location:** Create a location named `azure_blob` pointing to:
+      `abfss://container-databricks-azure@<account_name>.dfs.core.windows.net/`
+  3.  **Permissions:** Grant yourself `READ FILES` and `WRITE FILES`.
 
 
-### 3. Clone & Deploy
-```bash
-git clone [https://github.com/dominik-mikulski/Retail_Azure_Medallion_Project](https://github.com/dominik-mikulski/Retail_Azure_Medallion_Project)
-```
-### 4. Run 
-1. Provide Path and run scripts/setup_infrastructure.py to provision catalogs and schemas.
-2. Pipeline Creation: - In Databricks, go to Delta Live Tables and click Create Pipeline.
-3. Source Code: Point to pipelines/retail_medallion_pipeline.py within your cloned repo.
-4. Pipeline Destination Catalog: prod_catalog, Target_schema: gold
-5. Variables: In Settings > JSON, add your pipeline.raw_path variable pointing to your Azure /raw folder.
+  ### 3. Clone & Deploy
+  ```bash
+  git clone [https://github.com/dominik-mikulski/Retail_Azure_Medallion_Project](https://github.com/dominik-mikulski/Retail_Azure_Medallion_Project)
+  ```
+  ### 4. Run 
+  1. Provide Path and run scripts/setup_infrastructure.py to provision catalogs and schemas.
+  2. Pipeline Creation: - In Databricks, go to Delta Live Tables and click Create Pipeline.
+  3. Source Code: Point to pipelines/retail_medallion_pipeline.py within your cloned repo.
+  4. Pipeline Destination Catalog: prod_catalog, Target_schema: gold
+  5. Variables: In Settings > JSON, add your pipeline.raw_path variable pointing to your Azure /raw folder.
 
-Scope
-Focused architecture demonstration. Not included: Terraform/IaC, external orchestration, or production monitoring.
+  Scope
+  Focused architecture demonstration. Not included: Terraform/IaC, external orchestration, or production monitoring.
 
-**Dominik Mikulski**  
-Expanding hands-on data engineering capabilities alongside 12 years of analytics leadership
-[LinkedIn](https://www.linkedin.com/in/dominikmikulski/) | [dominik.mikulski@gmail.com](mailto:dominik.mikulski@gmail.com)
+  **Dominik Mikulski**  
+  Expanding hands-on data engineering capabilities alongside 12 years of analytics leadership
+  [LinkedIn](https://www.linkedin.com/in/dominikmikulski/) | [dominik.mikulski@gmail.com](mailto:dominik.mikulski@gmail.com)
 
