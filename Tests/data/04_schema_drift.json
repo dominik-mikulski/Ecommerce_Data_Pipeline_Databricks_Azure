@@ -1,0 +1,31 @@
+[
+  {
+    "order_id": 5,
+    "customer": {
+      "customer_id": 184,
+      "segment": "B2C",
+      "loyalty_tier": "GOLD"
+    },
+    "order_date": "2026-02-03 14:00:00",
+    "status": "DELIVERED",
+    "promo_code": "SPRING2026",
+    "payment": {
+      "method": "CARD",
+      "currency": "EUR",
+      "amount": 1803.35
+    },
+    "items": [
+      {
+        "product_id": 1001,
+        "category": "office",
+        "quantity": 3,
+        "unit_price": 364.85
+      }
+    ],
+    "shipping": {
+      "country": "FR",
+      "city": "City_39",
+      "delivery_type": "FREIGHT"
+    }
+  }
+]

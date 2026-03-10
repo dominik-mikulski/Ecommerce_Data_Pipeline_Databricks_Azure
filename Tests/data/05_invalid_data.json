@@ -1,0 +1,30 @@
+[
+  {
+    "order_id": null,
+    "customer": {
+      "customer_id": 106,
+      "segment": "B2B",
+      "loyalty_tier": "BRONZE"
+    },
+    "order_date": "2026-02-04 09:00:00",
+    "status": "DELIVERED",
+    "payment": {
+      "method": "CARD",
+      "currency": "EUR",
+      "amount": 2277.35
+    },
+    "items": [
+      {
+        "product_id": 1007,
+        "category": "office",
+        "quantity": 3,
+        "unit_price": 99.05
+      }
+    ],
+    "shipping": {
+      "country": "BE",
+      "city": "City_11",
+      "delivery_type": "EXPRESS"
+    }
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "order_id": 3,
+    "customer": {
+      "customer_id": 238,
+      "segment": "B2B",
+      "loyalty_tier": "GOLD"
+    },
+    "order_date": "2026-02-02 10:00:00",
+    "status": "DELIVERED",
+    "payment": {
+      "method": "CARD",
+      "currency": "EUR",
+      "amount": 540.20
+    },
+    "items": [
+      {
+        "product_id": 1208,
+        "category": "electronics",
+        "quantity": 1,
+        "unit_price": 540.20
+      }
+    ],
+    "shipping": {
+      "country": "FR",
+      "city": "City_29",
+      "delivery_type": "EXPRESS"
+    }
+  }
+]

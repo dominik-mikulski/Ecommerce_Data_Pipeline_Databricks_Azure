@@ -1,0 +1,58 @@
+[
+  {
+    "order_id": 1,
+    "customer": {
+      "customer_id": 238,
+      "segment": "B2B",
+      "loyalty_tier": "SILVER"
+    },
+    "order_date": "2026-02-01 08:00:00",
+    "status": "SHIPPED",
+    "payment": {
+      "method": "PAYPAL",
+      "currency": "EUR",
+      "amount": 3502.67
+    },
+    "items": [
+      {
+        "product_id": 1079,
+        "category": "toys",
+        "quantity": 4,
+        "unit_price": 100.72
+      }
+    ],
+    "shipping": {
+      "country": "FR",
+      "city": "City_29",
+      "delivery_type": "STANDARD"
+    }
+  },
+  {
+    "order_id": 2,
+    "customer": {
+      "customer_id": 192,
+      "segment": "B2C",
+      "loyalty_tier": "GOLD"
+    },
+    "order_date": "2026-02-01 08:00:00",
+    "status": "DELIVERED",
+    "payment": {
+      "method": "CARD",
+      "currency": "EUR",
+      "amount": 2169.9
+    },
+    "items": [
+      {
+        "product_id": 1188,
+        "category": "office",
+        "quantity": 5,
+        "unit_price": 433.98
+      }
+    ],
+    "shipping": {
+      "country": "IT",
+      "city": "City_36",
+      "delivery_type": "EXPRESS"
+    }
+  }
+]

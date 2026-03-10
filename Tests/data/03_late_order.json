@@ -1,0 +1,30 @@
+[
+  {
+    "order_id": 4,
+    "customer": {
+      "customer_id": 148,
+      "segment": "B2C",
+      "loyalty_tier": "SILVER"
+    },
+    "order_date": "2026-01-25 12:00:00",
+    "status": "SHIPPED",
+    "payment": {
+      "method": "INVOICE",
+      "currency": "EUR",
+      "amount": 253.86
+    },
+    "items": [
+      {
+        "product_id": 1232,
+        "category": "home",
+        "quantity": 1,
+        "unit_price": 253.86
+      }
+    ],
+    "shipping": {
+      "country": "DE",
+      "city": "City_5",
+      "delivery_type": "STANDARD"
+    }
+  }
+]
